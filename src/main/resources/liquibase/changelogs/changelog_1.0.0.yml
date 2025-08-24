@@ -1,0 +1,42 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: dev
+      changes:
+        - createTable:
+            tableName: recommendations
+            columns:
+              - column:
+                  name: id
+                  type: LONG
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+              - column:
+                  name: product_name
+                  type: VARCHAR(50)
+              - column:
+                  name: product_id
+                  type: UUID
+                  constraints:
+                    nullable: true
+              
+              - column:
+                  name: text
+                  type: TEXT
+                  constraints:
+                    nullable: true
+              - column:
+                  name: rule
+                  type: JSONB
+                  constraints:
+                    nullable: true
+                  
+                  
+                
+        
+        
+       
+          
+          
+        

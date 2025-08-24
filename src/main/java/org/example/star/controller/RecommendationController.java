@@ -1,12 +1,12 @@
 package org.example.star.controller;
 
 
+import org.example.star.model.dto.DynamicRecommendationDto;
+import org.example.star.model.dto.RecommendationDto;
 import org.springframework.http.ResponseEntity;
 import org.example.star.model.recomendation.Recommendation;
 import org.example.star.service.RecommendationService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 
 import java.util.List;
@@ -26,6 +26,25 @@ private final RecommendationService recommendationService;
        return ResponseEntity.ok(Dto);
     }
 
+    @PostMapping("/rule")
+    public ResponseEntity<DynamicRecommendationDto> addDynamicRule(@RequestBody DynamicRecommendationDto dto) {
+        try {
+            DynamicRecommendationDto result = recommendationService.addDynamicRule(dto);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(dto);
+        }
+    }
+    @GetMapping("/rules")
+    public ResponseEntity<List<DynamicRecommendationDto>> getAllRecommendations() {
+        return ResponseEntity.ok(recommendationService.getAllRecommendations());
+    }
+    @DeleteMapping("/deleteRule/{user_id}")
+    public ResponseEntity<Void> deleteDynamicRecommendation(@PathVariable("user_id") Long id) {
+        if (recommendationService.deleteRecommendation(id)) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
 
-    public record RecommendationDto(UUID user_id, List<Recommendation> recommendations) {}
 }

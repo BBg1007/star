@@ -1,5 +1,6 @@
 package org.example.star.model.recomendation;
 
+import jakarta.validation.constraints.NotNull;
 import org.example.star.constants.RecommendationsData;
 import org.springframework.stereotype.Component;
 
@@ -7,9 +8,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 public class Recommendation {
-    private final String name;
-    private final UUID id;
-    private final String text;
+    @NotNull
+    private  String name;
+    @NotNull
+    private  UUID id;
+    @NotNull
+    private  String text;
 
     public Recommendation(String name, UUID id, String text) {
         this.name = name;
@@ -27,6 +31,18 @@ public class Recommendation {
 
     public String getText() {
         return text;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public void setText(String text) {
+        this.text = text;
     }
 
     public static Recommendation getInvest500Recommendation() {
