@@ -6,9 +6,10 @@ import org.example.star.model.recomendation.Recommendation;
 import org.example.star.repositories.RecommendationsRepository;
 import org.example.star.repositories.TransactionsRepository;
 import org.example.star.utill.Rule.RuleHandler;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
-
+@Component
 public class DynamicRecommendationRule implements RecommendationRuleSet{
     private final TransactionsRepository transactionsRepository;
     private final RecommendationsRepository recommendationsRepository;
@@ -31,6 +32,7 @@ public class DynamicRecommendationRule implements RecommendationRuleSet{
                         .map(rule -> {
                             String sqlQuery = RuleHandler.getSqlQuery(rule);
                             Map<String,Object> params = RuleHandler.buildSqlParameters(rule);
+                            params.put("userId",id);
                             return transactionsRepository.getDynamicRuleQuery(sqlQuery,params);
                         }).allMatch(Boolean.TRUE::equals))
                 .forEach(dto -> {

@@ -3,9 +3,10 @@ package org.example.star.utill.json;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
-
+@Component
 public class JsonConverter {
     private final ObjectMapper objectMapper;
 

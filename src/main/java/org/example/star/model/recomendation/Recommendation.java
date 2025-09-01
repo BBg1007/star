@@ -1,8 +1,8 @@
 package org.example.star.model.recomendation;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import jakarta.validation.constraints.NotNull;
 import org.example.star.constants.RecommendationsData;
-import org.springframework.stereotype.Component;
 
 import java.util.Objects;
 import java.util.UUID;
@@ -15,6 +15,8 @@ public class Recommendation {
     @NotNull
     private  String text;
 
+    public Recommendation(){}
+    @JsonCreator
     public Recommendation(String name, UUID id, String text) {
         this.name = name;
         this.id = id;

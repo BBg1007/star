@@ -8,13 +8,13 @@ databaseChangeLog:
             columns:
               - column:
                   name: id
-                  type: LONG
+                  type: BIGINT
                   autoIncrement: true
                   constraints:
                     primaryKey: true
               - column:
                   name: product_name
-                  type: VARCHAR(50)
+                  type: VARCHAR(255)
               - column:
                   name: product_id
                   type: UUID
@@ -22,7 +22,7 @@ databaseChangeLog:
                     nullable: true
               
               - column:
-                  name: text
+                  name: product_text
                   type: TEXT
                   constraints:
                     nullable: true

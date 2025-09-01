@@ -24,8 +24,9 @@ public class RecommendationsRepository {
     public DynamicRecommendationDto addRecommendation(DynamicRecommendationDto dto) {
         String insertSql = """
                 INSERT INTO recommendations
-                (product_name,product_id, text, rules::jsonb)
-                VALUES (:name,:id,:text,rules::jsonb) RETURNING id
+                (product_name,product_id, text, rules)
+                VALUES (:name,:id,:text,:rules::jsonb)
+                RETURNING id
                 """;
         Map<String, Object> params = new HashMap<>();
         params.put("name", dto.getName());

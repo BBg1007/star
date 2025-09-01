@@ -1,20 +1,69 @@
 package org.example.star.constants;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 public enum Queries {
      USER_OF("USER_OF",
-             "SELECT CASE WHEN EXIST(SELECT 1 FROM TRANSACTIONS t " +
-             "JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID AND p.TYPE = productType " +
-             "WHERE t.USER_ID = :userId)" +
-             "THEN TRUE" +
-             "ELSE FALSE" +
-             "END",
+             """
+                     SELECT EXISTS(SELECT 1
+                         FROM TRANSACTIONS t
+                         JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
+                         WHERE t.USER_ID = :userId
+                         AND p.TYPE = :productType)
+                     """,
               Map.of("productType",ProductType.getProductTypes()),
-             List.of("productType"));
+             List.of("productType")),
+    ACTIVE_USER_OF("ACTIVE_USER_OF",
+            """
+                    SELECT EXISTS(
+                        SELECT 1
+                        FROM TRANSACTIONS t
+                        JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
+                        WHERE t.USER_ID = :userId
+                        AND p.TYPE = :productType
+                        LIMIT 5)
+                    """,
+            Map.of("productType", ProductType.getProductTypes()),
+            List.of("productType")),
+    TRANSACTION_SUM_COMPARE("TRANSACTION_SUM_COMPARE",
+            """
+                   SELECT EXISTS(
+                   SELECT 1
+                      FROM TRANSACTION t
+                      JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
+                      WHERE p.TYPE = :productType
+                      AND t.USER_ID = :userId
+                      AND t.TYPE = :transactionType
+                      GROUP BY t.user_id
+                      HAVING SUM (t.amount) :sign :number
+                      )
+                   """,
+                    Map.of("productType",ProductType.getProductTypes(),
+                            "transactionType",TransactionType.getTransactionTypes(),
+                             "sign",List.of("!=","=","<=", ">=", "<",">")),
+                             List.of("productType","transactionType","sign","number")),
+    TRANSACTION_SUM_COMPARE_DEPOSIT_WITHDRAW("TRANSACTION_SUM_COMPARE_DEPOSIT_WITHDRAW",
+            """
+                    SELECT EXISTS(
+                    SELECT 1
+                    FROM(
+                    SELECT
+                      SUM(CASE WHEN t.type = "DEPOSIT" THEN t.amount ELSE 0 END) as deposit_sum,
+                      SUM(CASE WHEN t.type = "WITHDRAW" THEN t.amount ELSE 0 END) as withdraw_sum,
+                    FROM TRANSACTION t
+                    JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
+                    WHEN p.TYPE = :productType
+                    AND t.USER_ID = :user_id
+                    ) sums
+                    WHERE (sums.deposit_sum :sign sums.withdraw_sum))
+                    """,
+            Map.of("productType",ProductType.getProductTypes(),
+                    "sign",List.of("!=","=","<=", ">=", "<",">")),
+
+                     List.of("productType","sign"));
+
 
     private final String name;
     private final String query;

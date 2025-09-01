@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import javax.sql.DataSource;
 
@@ -22,10 +22,10 @@ public class RecommendationsDataSourceConfiguration {
     }
 
     @Bean(name = "recommendationsH2JdbcTemplate")
-    public JdbcTemplate recommendationsH2JdbcTemplate(
+    public NamedParameterJdbcTemplate recommendationsH2JdbcTemplate(
             @Qualifier("recommendationsH2DataSource") DataSource dataSource
     ) {
-        return new JdbcTemplate(dataSource);
+        return new NamedParameterJdbcTemplate(dataSource);
     }
 
     @Primary
@@ -42,8 +42,8 @@ public class RecommendationsDataSourceConfiguration {
     }
 
     @Bean(name = "recommendationsPostgresJdbcTemplate")
-    public JdbcTemplate recommendationsPostgresJdbcTemplate(
+    public NamedParameterJdbcTemplate recommendationsPostgresJdbcTemplate(
             @Qualifier("recommendationsPostgresDataSource") DataSource dataSource) {
-        return new JdbcTemplate(dataSource);
+        return new NamedParameterJdbcTemplate(dataSource);
     }
 }

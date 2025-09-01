@@ -39,8 +39,8 @@ private final RecommendationService recommendationService;
     public ResponseEntity<List<DynamicRecommendationDto>> getAllRecommendations() {
         return ResponseEntity.ok(recommendationService.getAllRecommendations());
     }
-    @DeleteMapping("/deleteRule/{user_id}")
-    public ResponseEntity<Void> deleteDynamicRecommendation(@PathVariable("user_id") Long id) {
+    @DeleteMapping("/deleteRule/{product_id}")
+    public ResponseEntity<Void> deleteDynamicRecommendation(@PathVariable("product_id") Long id) {
         if (recommendationService.deleteRecommendation(id)) {
             return ResponseEntity.noContent().build();
         }
