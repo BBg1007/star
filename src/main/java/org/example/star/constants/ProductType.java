@@ -25,4 +25,6 @@ public enum ProductType {
                 .map(ProductType::getType)
                 .collect(Collectors.toList());
     }
+
+
 }
