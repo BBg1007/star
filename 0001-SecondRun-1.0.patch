@@ -1,0 +1,756 @@
+From fd194aaf123496573e64827bb18542b1e166ced8 Mon Sep 17 00:00:00 2001
+From: BBg <bbgalexson@gmail.com>
+Date: Mon, 1 Sep 2025 20:58:44 +0300
+Subject: [PATCH] SecondRun 1.0
+
+---
+ pom.xml                                       |  60 ++++----
+ ...ecommendationsDataSourceConfiguration.java |  10 +-
+ .../example/star/constants/ProductType.java   |   2 +
+ .../org/example/star/constants/Queries.java   |  65 +++++++--
+ .../star/constants/TransactionType.java       |  10 ++
+ .../controller/RecommendationController.java  |   4 +-
+ .../model/dto/DynamicRecommendationDto.java   |  45 ++++--
+ .../model/recomendation/Recommendation.java   |   4 +-
+ .../org/example/star/model/rule/Rule.java     |  32 ++++-
+ .../RecommendationsRepository.java            |   5 +-
+ .../repositories/TransactionsRepository.java  | 134 +++++++++++++-----
+ .../star/utill/json/JsonConverter.java        |   3 +-
+ .../DynamicRecommendationRule.java            |   4 +-
+ src/main/resources/application.properties     |   4 +-
+ src/main/resources/liquibase.properties       |   5 +
+ .../resources/liquibase/changelog-master.yml  |   4 +-
+ .../liquibase/changelogs/changelog_1.0.0.yml  |   6 +-
+ 17 files changed, 293 insertions(+), 104 deletions(-)
+ create mode 100644 src/main/resources/liquibase.properties
+
+diff --git a/pom.xml b/pom.xml
+index 0b08de3..55b8a7f 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -12,13 +12,14 @@
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-parent</artifactId>
+         <version>3.4.5</version>
+-        <relativePath/> <!-- lookup parent from repository -->
++        <relativePath/>
+     </parent>
+ 
+     <properties>
+         <maven.compiler.source>17</maven.compiler.source>
+         <maven.compiler.target>17</maven.compiler.target>
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
++        <liquibase.version>4.27.0</liquibase.version>
+     </properties>
+     <dependencies>
+     <dependency>
+@@ -26,15 +27,22 @@
+         <artifactId>spring-boot-starter-data-jdbc</artifactId>
+     </dependency>
+ 
++        <dependency>
++            <groupId>com.github.ben-manes.caffeine</groupId>
++            <artifactId>caffeine</artifactId>
++            <version>3.1.8</version>
++        </dependency>
++
+     <dependency>
+         <groupId>com.h2database</groupId>
+         <artifactId>h2</artifactId>
++        <scope>runtime</scope>
+     </dependency>
+ 
+         <dependency>
+             <groupId>org.postgresql</groupId>
+             <artifactId>postgresql</artifactId>
+-            <version>42.7.7</version>
++            <scope>runtime</scope>
+         </dependency>
+ 
+         <dependency>
+@@ -45,36 +53,36 @@
+ 
+         <dependency>
+             <groupId>org.liquibase</groupId>
+-            <artifactId>liquibase-maven-plugin</artifactId>
+-            <version>4.20.0</version>
++            <artifactId>liquibase-core</artifactId>
+         </dependency>
+ 
+         <dependency>
+             <groupId>org.springframework.boot</groupId>
+             <artifactId>spring-boot-starter-web</artifactId>
+         </dependency>
+-
+-        <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-core</artifactId>
+-            <version>2.19.0</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-databind</artifactId>
+-            <version>2.19.0</version>
+-        </dependency>
+-        <dependency>
+-            <groupId>com.fasterxml.jackson.core</groupId>
+-            <artifactId>jackson-annotations</artifactId>
+-            <version>2.19.0</version>
+-        </dependency>
+-
+-        <dependency>
+-            <groupId>org.springframework.boot</groupId>
+-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+-        </dependency>
+-
+     </dependencies>
++    <build>
++        <plugins>
++            <plugin>
++                <groupId>org.springframework.boot</groupId>
++                <artifactId>spring-boot-maven-plugin</artifactId>
++            </plugin>
++            <plugin>
++                <groupId>org.liquibase</groupId>
++                <artifactId>liquibase-maven-plugin</artifactId>
++                <version>${liquibase.version}</version>
++                <configuration>
++                    <propertyFile>src/main/resources/liquibase.properties</propertyFile>
++                </configuration>
++                <dependencies>
++                    <dependency>
++                        <groupId>org.postgresql</groupId>
++                        <artifactId>postgresql</artifactId>
++                        <version>42.7.2</version>
++                    </dependency>
++                </dependencies>
++            </plugin>
++        </plugins>
++    </build>
+ 
+ </project>
+\ No newline at end of file
+diff --git a/src/main/java/org/example/star/configuration/RecommendationsDataSourceConfiguration.java b/src/main/java/org/example/star/configuration/RecommendationsDataSourceConfiguration.java
+index 3b9a40a..ba1e365 100644
+--- a/src/main/java/org/example/star/configuration/RecommendationsDataSourceConfiguration.java
++++ b/src/main/java/org/example/star/configuration/RecommendationsDataSourceConfiguration.java
+@@ -6,7 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.context.annotation.Bean;
+ import org.springframework.context.annotation.Configuration;
+ import org.springframework.context.annotation.Primary;
+-import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+ 
+ import javax.sql.DataSource;
+ 
+@@ -22,10 +22,10 @@ public class RecommendationsDataSourceConfiguration {
+     }
+ 
+     @Bean(name = "recommendationsH2JdbcTemplate")
+-    public JdbcTemplate recommendationsH2JdbcTemplate(
++    public NamedParameterJdbcTemplate recommendationsH2JdbcTemplate(
+             @Qualifier("recommendationsH2DataSource") DataSource dataSource
+     ) {
+-        return new JdbcTemplate(dataSource);
++        return new NamedParameterJdbcTemplate(dataSource);
+     }
+ 
+     @Primary
+@@ -42,8 +42,8 @@ public class RecommendationsDataSourceConfiguration {
+     }
+ 
+     @Bean(name = "recommendationsPostgresJdbcTemplate")
+-    public JdbcTemplate recommendationsPostgresJdbcTemplate(
++    public NamedParameterJdbcTemplate recommendationsPostgresJdbcTemplate(
+             @Qualifier("recommendationsPostgresDataSource") DataSource dataSource) {
+-        return new JdbcTemplate(dataSource);
++        return new NamedParameterJdbcTemplate(dataSource);
+     }
+ }
+diff --git a/src/main/java/org/example/star/constants/ProductType.java b/src/main/java/org/example/star/constants/ProductType.java
+index 142c875..d755a34 100644
+--- a/src/main/java/org/example/star/constants/ProductType.java
++++ b/src/main/java/org/example/star/constants/ProductType.java
+@@ -25,4 +25,6 @@ public enum ProductType {
+                 .map(ProductType::getType)
+                 .collect(Collectors.toList());
+     }
++
++
+ }
+diff --git a/src/main/java/org/example/star/constants/Queries.java b/src/main/java/org/example/star/constants/Queries.java
+index e15c257..59d667b 100644
+--- a/src/main/java/org/example/star/constants/Queries.java
++++ b/src/main/java/org/example/star/constants/Queries.java
+@@ -1,20 +1,69 @@
+ package org.example.star.constants;
+ 
+-import java.util.Arrays;
+ import java.util.HashMap;
+ import java.util.List;
+ import java.util.Map;
+ 
+ public enum Queries {
+      USER_OF("USER_OF",
+-             "SELECT CASE WHEN EXIST(SELECT 1 FROM TRANSACTIONS t " +
+-             "JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID AND p.TYPE = productType " +
+-             "WHERE t.USER_ID = :userId)" +
+-             "THEN TRUE" +
+-             "ELSE FALSE" +
+-             "END",
++             """
++                     SELECT EXISTS(SELECT 1
++                         FROM TRANSACTIONS t
++                         JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
++                         WHERE t.USER_ID = :userId
++                         AND p.TYPE = :productType)
++                     """,
+               Map.of("productType",ProductType.getProductTypes()),
+-             List.of("productType"));
++             List.of("productType")),
++    ACTIVE_USER_OF("ACTIVE_USER_OF",
++            """
++                    SELECT EXISTS(
++                        SELECT 1
++                        FROM TRANSACTIONS t
++                        JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
++                        WHERE t.USER_ID = :userId
++                        AND p.TYPE = :productType
++                        LIMIT 5)
++                    """,
++            Map.of("productType", ProductType.getProductTypes()),
++            List.of("productType")),
++    TRANSACTION_SUM_COMPARE("TRANSACTION_SUM_COMPARE",
++            """
++                   SELECT EXISTS(
++                   SELECT 1
++                      FROM TRANSACTION t
++                      JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
++                      WHERE p.TYPE = :productType
++                      AND t.USER_ID = :userId
++                      AND t.TYPE = :transactionType
++                      GROUP BY t.user_id
++                      HAVING SUM (t.amount) :sign :number
++                      )
++                   """,
++                    Map.of("productType",ProductType.getProductTypes(),
++                            "transactionType",TransactionType.getTransactionTypes(),
++                             "sign",List.of("!=","=","<=", ">=", "<",">")),
++                             List.of("productType","transactionType","sign","number")),
++    TRANSACTION_SUM_COMPARE_DEPOSIT_WITHDRAW("TRANSACTION_SUM_COMPARE_DEPOSIT_WITHDRAW",
++            """
++                    SELECT EXISTS(
++                    SELECT 1
++                    FROM(
++                    SELECT
++                      SUM(CASE WHEN t.type = "DEPOSIT" THEN t.amount ELSE 0 END) as deposit_sum,
++                      SUM(CASE WHEN t.type = "WITHDRAW" THEN t.amount ELSE 0 END) as withdraw_sum,
++                    FROM TRANSACTION t
++                    JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
++                    WHEN p.TYPE = :productType
++                    AND t.USER_ID = :user_id
++                    ) sums
++                    WHERE (sums.deposit_sum :sign sums.withdraw_sum))
++                    """,
++            Map.of("productType",ProductType.getProductTypes(),
++                    "sign",List.of("!=","=","<=", ">=", "<",">")),
++
++                     List.of("productType","sign"));
++
+ 
+     private final String name;
+     private final String query;
+diff --git a/src/main/java/org/example/star/constants/TransactionType.java b/src/main/java/org/example/star/constants/TransactionType.java
+index 1757d2b..59e716a 100644
+--- a/src/main/java/org/example/star/constants/TransactionType.java
++++ b/src/main/java/org/example/star/constants/TransactionType.java
+@@ -1,5 +1,9 @@
+ package org.example.star.constants;
+ 
++import java.util.Arrays;
++import java.util.List;
++import java.util.stream.Collectors;
++
+ public enum TransactionType {
+     DEPOSIT("DEPOSIT"),
+     WITHDRAW("WITHDRAW");
+@@ -13,4 +17,10 @@ public enum TransactionType {
+     public String getType() {
+         return this.type;
+     }
++
++    public static List<String> getTransactionTypes(){
++        return Arrays.stream(TransactionType.values())
++                .map(TransactionType::getType)
++                .collect(Collectors.toList());
++    }
+ }
+diff --git a/src/main/java/org/example/star/controller/RecommendationController.java b/src/main/java/org/example/star/controller/RecommendationController.java
+index 4816c77..d145271 100644
+--- a/src/main/java/org/example/star/controller/RecommendationController.java
++++ b/src/main/java/org/example/star/controller/RecommendationController.java
+@@ -39,8 +39,8 @@ private final RecommendationService recommendationService;
+     public ResponseEntity<List<DynamicRecommendationDto>> getAllRecommendations() {
+         return ResponseEntity.ok(recommendationService.getAllRecommendations());
+     }
+-    @DeleteMapping("/deleteRule/{user_id}")
+-    public ResponseEntity<Void> deleteDynamicRecommendation(@PathVariable("user_id") Long id) {
++    @DeleteMapping("/deleteRule/{product_id}")
++    public ResponseEntity<Void> deleteDynamicRecommendation(@PathVariable("product_id") Long id) {
+         if (recommendationService.deleteRecommendation(id)) {
+             return ResponseEntity.noContent().build();
+         }
+diff --git a/src/main/java/org/example/star/model/dto/DynamicRecommendationDto.java b/src/main/java/org/example/star/model/dto/DynamicRecommendationDto.java
+index 6a28fb8..bad174a 100644
+--- a/src/main/java/org/example/star/model/dto/DynamicRecommendationDto.java
++++ b/src/main/java/org/example/star/model/dto/DynamicRecommendationDto.java
+@@ -1,9 +1,12 @@
+ package org.example.star.model.dto;
+ 
+-import jakarta.persistence.Entity;
++
++import com.fasterxml.jackson.annotation.JsonCreator;
++import com.fasterxml.jackson.annotation.JsonProperty;
+ import jakarta.validation.constraints.NotNull;
+ import org.example.star.model.recomendation.Recommendation;
+ import org.example.star.model.rule.Rule;
++import org.springframework.data.annotation.Id;
+ import org.springframework.data.relational.core.mapping.Table;
+ 
+ import java.util.List;
+@@ -11,34 +14,54 @@ import java.util.Optional;
+ import java.util.UUID;
+ 
+ 
+-@Entity
+-@Table(name = "recommendations")
++
++
+ public class DynamicRecommendationDto extends Recommendation {
+     @NotNull
+     private List<Rule> rules;
+-    private final Long recommendation_id;
+ 
+-    public DynamicRecommendationDto(Long recommendation_id, String name, UUID product_id, String text, List<Rule> rules) {
++    private Long recommendation_id;
++
++    public DynamicRecommendationDto(){}
++
++    public DynamicRecommendationDto(Long recommendation_id, String name,UUID product_id, String text,List<Rule> rules) {
+         super(name, product_id, text);
+         this.recommendation_id = recommendation_id;
+         this.rules = rules;
+     }
+-
++    @JsonProperty("product_id")
+     public UUID getProductId() {return super.getId();}
+-
++    @JsonProperty("recommendation_id")
+     public Long getRecommendation_id() {
+         return recommendation_id;
+     }
+-
++    @JsonProperty("rule")
+     public List<Rule> getRules() {
+         return rules;
+     }
+-
++    @JsonProperty("rule")
+     public void setRules(List<Rule> rules) {
+         this.rules = rules;
+     }
+ 
+-    public Optional<Recommendation> getRecommendation(){
+-        return Optional.of(new Recommendation(this.getName(),this.getProductId(),this.getText()));
++
++    @JsonProperty("product_name")
++    public String getProductName() {
++        return super.getName();
++    }
++
++    @JsonProperty("product_name")
++    public void setProductName(String name) {
++        super.setName(name);
++    }
++
++    @JsonProperty("product_text")
++    public String getProductText() {
++        return super.getText();
++    }
++
++    @JsonProperty("product_text")
++    public void setProductText(String text) {
++        super.setText(text);
+     }
+ }
+diff --git a/src/main/java/org/example/star/model/recomendation/Recommendation.java b/src/main/java/org/example/star/model/recomendation/Recommendation.java
+index 4bc8828..ee97665 100644
+--- a/src/main/java/org/example/star/model/recomendation/Recommendation.java
++++ b/src/main/java/org/example/star/model/recomendation/Recommendation.java
+@@ -1,8 +1,8 @@
+ package org.example.star.model.recomendation;
+ 
++import com.fasterxml.jackson.annotation.JsonCreator;
+ import jakarta.validation.constraints.NotNull;
+ import org.example.star.constants.RecommendationsData;
+-import org.springframework.stereotype.Component;
+ 
+ import java.util.Objects;
+ import java.util.UUID;
+@@ -15,6 +15,8 @@ public class Recommendation {
+     @NotNull
+     private  String text;
+ 
++    public Recommendation(){}
++    @JsonCreator
+     public Recommendation(String name, UUID id, String text) {
+         this.name = name;
+         this.id = id;
+diff --git a/src/main/java/org/example/star/model/rule/Rule.java b/src/main/java/org/example/star/model/rule/Rule.java
+index 019e352..8ef4456 100644
+--- a/src/main/java/org/example/star/model/rule/Rule.java
++++ b/src/main/java/org/example/star/model/rule/Rule.java
+@@ -1,27 +1,47 @@
+ package org.example.star.model.rule;
+ 
++
++import com.fasterxml.jackson.annotation.JsonCreator;
++import com.fasterxml.jackson.annotation.JsonProperty;
++
+ import java.util.List;
+ 
+ public class Rule {
+-    private final String queryName;
+-    private final List<String> arguments;
+-    private final boolean negate;
++    private String queryName;
++    private List<String> arguments;
++    private boolean negate;
++
+ 
+-    public Rule(String queryName, List<String> arguments, boolean negate) {
++    public Rule(String queryName, List<String> arguments,boolean negate) {
+         this.queryName = queryName;
+         this.arguments = arguments;
+         this.negate = negate;
+     }
+ 
++    public Rule( ){}
++
++    @JsonProperty("query")
+     public String getQueryName() {
+         return queryName;
+     }
+-
++    @JsonProperty("arguments")
+     public List<String> getArguments() {
+         return arguments;
+     }
+-
++    @JsonProperty("negate")
+     public boolean isNegate() {
+         return negate;
+     }
++    @JsonProperty("query")
++    public void setQueryName(String queryName) {
++        this.queryName = queryName;
++    }
++    @JsonProperty("arguments")
++    public void setArguments(List<String> arguments) {
++        this.arguments = arguments;
++    }
++    @JsonProperty("negate")
++    public void setNegate(boolean negate) {
++        this.negate = negate;
++    }
+ }
+diff --git a/src/main/java/org/example/star/repositories/RecommendationsRepository.java b/src/main/java/org/example/star/repositories/RecommendationsRepository.java
+index be902d6..4afd96c 100644
+--- a/src/main/java/org/example/star/repositories/RecommendationsRepository.java
++++ b/src/main/java/org/example/star/repositories/RecommendationsRepository.java
+@@ -24,8 +24,9 @@ public class RecommendationsRepository {
+     public DynamicRecommendationDto addRecommendation(DynamicRecommendationDto dto) {
+         String insertSql = """
+                 INSERT INTO recommendations
+-                (product_name,product_id, text, rules::jsonb)
+-                VALUES (:name,:id,:text,rules::jsonb) RETURNING id
++                (product_name,product_id, text, rules)
++                VALUES (:name,:id,:text,:rules::jsonb)
++                RETURNING id
+                 """;
+         Map<String, Object> params = new HashMap<>();
+         params.put("name", dto.getName());
+diff --git a/src/main/java/org/example/star/repositories/TransactionsRepository.java b/src/main/java/org/example/star/repositories/TransactionsRepository.java
+index 554814d..1125d46 100644
+--- a/src/main/java/org/example/star/repositories/TransactionsRepository.java
++++ b/src/main/java/org/example/star/repositories/TransactionsRepository.java
+@@ -1,60 +1,124 @@
+ package org.example.star.repositories;
+ 
+-import org.example.star.constants.Queries;
+-import org.example.star.model.rule.Rule;
++import com.github.benmanes.caffeine.cache.Cache;
++import com.github.benmanes.caffeine.cache.Caffeine;
+ import org.springframework.beans.factory.annotation.Qualifier;
+-import org.springframework.jdbc.core.JdbcTemplate;
+ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+ import org.springframework.stereotype.Repository;
+ 
+-import java.util.*;
++import java.util.HashMap;
++import java.util.Map;
++import java.util.Objects;
++import java.util.UUID;
++import java.util.concurrent.TimeUnit;
+ 
+ @Repository
+ public class TransactionsRepository {
+     private final NamedParameterJdbcTemplate jdbcTemplate;
++    private final Cache<CacheKey, Boolean> productUsageCache = Caffeine.newBuilder()
++            .expireAfterWrite(1, TimeUnit.HOURS)
++            .build();
++
++    private final Cache<CacheKey, Integer> transactionAmountCache = Caffeine.newBuilder()
++            .expireAfterWrite(24, TimeUnit.HOURS)
++            .build();
++
++    private final Cache<CacheKey, Boolean> dynamicRuleCache = Caffeine.newBuilder()
++            .expireAfterWrite(24, TimeUnit.HOURS)
++            .build();
+ 
+     public TransactionsRepository(@Qualifier("recommendationsH2JdbcTemplate") NamedParameterJdbcTemplate jdbcTemplate) {
+         this.jdbcTemplate = jdbcTemplate;
+     }
+ 
+     public boolean checkProductUsageByUserByUserId(UUID id, String productType) {
+-        Map<String,Object> params = new HashMap<>();
+-        params.put("userId",id);
+-        params.put("productType",productType);
+-        Boolean using = jdbcTemplate.queryForObject(
+-                """
+-        SELECT EXISTS(SELECT 1
+-            FROM TRANSACTIONS t
+-            JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
+-            WHERE t.USER_ID = :userId
+-            AND p.TYPE = :productType)
+-        """,
+-                params,
+-                Boolean.class);
+-
+-        return Boolean.TRUE.equals(using);
++        CacheKey cacheKey = new CacheKey(id, productType);
++        long startTime = System.nanoTime();
++        boolean result = productUsageCache.get(cacheKey, key -> {
++            System.out.println("Нет кеша с ключом " + key);
++            long queryStartTime = System.nanoTime();
++            Map<String, Object> params = new HashMap<>();
++            params.put("userId", id);
++            params.put("productType", productType);
++            Boolean using = jdbcTemplate.queryForObject(
++                    """
++                            SELECT EXISTS(SELECT 1
++                                FROM TRANSACTIONS t
++                                JOIN PRODUCTS p ON t.PRODUCT_ID = p.ID
++                                WHERE t.USER_ID = :userId
++                                AND p.TYPE = :productType)
++                            """,
++                    params,
++                    Boolean.class);
++
++            long queryDuration = System.nanoTime() - queryStartTime;
++            System.out.println("На запрос потребовалось " + queryDuration + "ns");
++            return Boolean.TRUE.equals(using);
++        });
++        long totalDuration = System.nanoTime() - startTime;
++        System.out.println("Время выполнения метода " + totalDuration + "ns");
++        return result;
+     }
+ 
+     public Integer getTransactionAmountByUserByUserId(UUID id, String transactionType, String productType) {
+-        Map<String,Object> params = new HashMap<>();
+-        params.put("userId",id);
+-        params.put("productType",productType);
+-        params.put("transactionType",transactionType);
+-        return jdbcTemplate.queryForObject(
+-                """
+-    SELECT SUM(amount)
+-    FROM transactions t
+-    JOIN products p ON t.product_id = p.id
+-    WHERE p.type = :productType
+-    AND t.user_id = :userId
+-    AND t.type = :transactionType
+-    """,
+-                params,
+-                Integer.class);
++        CacheKey cacheKey = new CacheKey(id, transactionType, productType);
++
++        return transactionAmountCache.get(cacheKey, key -> {
++            Map<String, Object> params = new HashMap<>();
++            params.put("userId", id);
++            params.put("productType", productType);
++            params.put("transactionType", transactionType);
++            return jdbcTemplate.queryForObject(
++                    """
++                            SELECT SUM(amount)
++                            FROM transactions t
++                            JOIN products p ON t.product_id = p.id
++                            WHERE p.type = :productType
++                            AND t.user_id = :userId
++                            AND t.type = :transactionType
++                            """,
++                    params,
++                    Integer.class);
++        });
++
+     }
+ 
+     public Boolean getDynamicRuleQuery(String sqlQuery, Map<String, Object> params) {
+-        return jdbcTemplate.queryForObject(sqlQuery,params, Boolean.class);
++        UUID userId = (UUID) params.get("userId");
++        CacheKey cacheKey = new CacheKey(userId, sqlQuery, params.toString());
++        return dynamicRuleCache.get(cacheKey, key -> {
++            return jdbcTemplate.queryForObject(sqlQuery, params, Boolean.class);
++        });
++    }
++
++    private static class CacheKey {
++        private final UUID userId;
++        private final String param1;
++        private final String param2;
++
++        public CacheKey(UUID userId, String param1) {
++            this.userId = userId;
++            this.param1 = param1;
++            this.param2 = null;
++        }
++
++        public CacheKey(UUID userId, String param1, String param2) {
++            this.userId = userId;
++            this.param1 = param1;
++            this.param2 = param2;
++        }
++
++        @Override
++        public boolean equals(Object o) {
++            if (o == null || getClass() != o.getClass()) return false;
++            CacheKey cacheKey = (CacheKey) o;
++            return Objects.equals(userId, cacheKey.userId) && Objects.equals(param1, cacheKey.param1) && Objects.equals(param2, cacheKey.param2);
++        }
++
++        @Override
++        public int hashCode() {
++            return Objects.hash(userId, param1, param2);
++        }
+     }
+ 
+ }
+diff --git a/src/main/java/org/example/star/utill/json/JsonConverter.java b/src/main/java/org/example/star/utill/json/JsonConverter.java
+index 893099b..cc16f55 100644
+--- a/src/main/java/org/example/star/utill/json/JsonConverter.java
++++ b/src/main/java/org/example/star/utill/json/JsonConverter.java
+@@ -3,9 +3,10 @@ package org.example.star.utill.json;
+ import com.fasterxml.jackson.core.JsonProcessingException;
+ import com.fasterxml.jackson.databind.JsonMappingException;
+ import com.fasterxml.jackson.databind.ObjectMapper;
++import org.springframework.stereotype.Component;
+ 
+ import java.util.List;
+-
++@Component
+ public class JsonConverter {
+     private final ObjectMapper objectMapper;
+ 
+diff --git a/src/main/java/org/example/star/utill/recommendation/DynamicRecommendationRule.java b/src/main/java/org/example/star/utill/recommendation/DynamicRecommendationRule.java
+index 45f0b47..e4971fa 100644
+--- a/src/main/java/org/example/star/utill/recommendation/DynamicRecommendationRule.java
++++ b/src/main/java/org/example/star/utill/recommendation/DynamicRecommendationRule.java
+@@ -6,9 +6,10 @@ import org.example.star.model.recomendation.Recommendation;
+ import org.example.star.repositories.RecommendationsRepository;
+ import org.example.star.repositories.TransactionsRepository;
+ import org.example.star.utill.Rule.RuleHandler;
++import org.springframework.stereotype.Component;
+ 
+ import java.util.*;
+-
++@Component
+ public class DynamicRecommendationRule implements RecommendationRuleSet{
+     private final TransactionsRepository transactionsRepository;
+     private final RecommendationsRepository recommendationsRepository;
+@@ -31,6 +32,7 @@ public class DynamicRecommendationRule implements RecommendationRuleSet{
+                         .map(rule -> {
+                             String sqlQuery = RuleHandler.getSqlQuery(rule);
+                             Map<String,Object> params = RuleHandler.buildSqlParameters(rule);
++                            params.put("userId",id);
+                             return transactionsRepository.getDynamicRuleQuery(sqlQuery,params);
+                         }).allMatch(Boolean.TRUE::equals))
+                 .forEach(dto -> {
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+index 4e1103c..d5f51d9 100644
+--- a/src/main/resources/application.properties
++++ b/src/main/resources/application.properties
+@@ -8,4 +8,6 @@ application.dynamic-recommendations-db.url= jdbc:postgresql://localhost:5432/rec
+ application.dynamic-recommendations-db.username=admin
+ application.dynamic-recommendations-db.password=superadmin
+ 
+-spring.liquibase.change-log=classpath:liquibase/changelog-master.yml
+\ No newline at end of file
++spring.liquibase.change-log=classpath:liquibase/changelog-master.yml
++
++spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.jdbc.JdbcRepositoriesAutoConfiguration
+\ No newline at end of file
+diff --git a/src/main/resources/liquibase.properties b/src/main/resources/liquibase.properties
+new file mode 100644
+index 0000000..64e41fa
+--- /dev/null
++++ b/src/main/resources/liquibase.properties
+@@ -0,0 +1,5 @@
++url=jdbc:postgresql://localhost:5432/recommendations
++username=admin
++password=superadmin
++changeLogFile=src/main/resources/liquibase/changelog-master.yml
++driver=org.postgresql.Driver
+\ No newline at end of file
+diff --git a/src/main/resources/liquibase/changelog-master.yml b/src/main/resources/liquibase/changelog-master.yml
+index 012ec83..5c8c959 100644
+--- a/src/main/resources/liquibase/changelog-master.yml
++++ b/src/main/resources/liquibase/changelog-master.yml
+@@ -1,3 +1,3 @@
+ databaseChangeLog:
+-  -include:
+-    file: liquibase/changelogs/changelog_1.0.0.yml
+\ No newline at end of file
++  - include:
++      file: liquibase/changelogs/changelog_1.0.0.yml
+\ No newline at end of file
+diff --git a/src/main/resources/liquibase/changelogs/changelog_1.0.0.yml b/src/main/resources/liquibase/changelogs/changelog_1.0.0.yml
+index 408ec86..16695dd 100644
+--- a/src/main/resources/liquibase/changelogs/changelog_1.0.0.yml
++++ b/src/main/resources/liquibase/changelogs/changelog_1.0.0.yml
+@@ -8,13 +8,13 @@ databaseChangeLog:
+             columns:
+               - column:
+                   name: id
+-                  type: LONG
++                  type: BIGINT
+                   autoIncrement: true
+                   constraints:
+                     primaryKey: true
+               - column:
+                   name: product_name
+-                  type: VARCHAR(50)
++                  type: VARCHAR(255)
+               - column:
+                   name: product_id
+                   type: UUID
+@@ -22,7 +22,7 @@ databaseChangeLog:
+                     nullable: true
+               
+               - column:
+-                  name: text
++                  name: product_text
+                   type: TEXT
+                   constraints:
+                     nullable: true
+-- 
+2.50.1.windows.1
+
