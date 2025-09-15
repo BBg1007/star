@@ -1,0 +1,29 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1
+      author: dev
+      changes:
+        - addColumn:
+            tableName: recommendations
+            columns:
+              - column:
+                  name: give_out_counter
+                  type: BIGINT
+                  defaultValue: 0
+                  constraints:
+                    nullable: false
+                    
+  - changeSet:
+      id: 2
+      author: dev
+      changes:
+          - createTable:
+              tableName: tg_bot_db
+              columns:
+                - column:
+                    name: chat_id
+                    type: BIGINT
+                    defaultValue: 0
+                    constraints:
+                      primaryKey: true
+                      nullable: false
