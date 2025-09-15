@@ -8,4 +8,5 @@ import java.util.UUID;
 @FunctionalInterface
 public interface RecommendationRuleSet {
     List<Optional<Recommendation>> checkUserForRecommendationsById(UUID id);
+
 }

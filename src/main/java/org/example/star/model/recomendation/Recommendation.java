@@ -81,10 +81,7 @@ public class Recommendation {
 
     @Override
     public String toString() {
-        return "Recommendation{" +
-                "name='" + name + '\'' +
-                ", id=" + id +
-                ", text='" + text + '\'' +
-                '}';
+        return "Вашему вниманию предоставляется пакет услуг "+name
+                +"\n" + text;
     }
 }

@@ -38,4 +38,5 @@ public class RecommendationRuleTopSaving implements RecommendationRuleSet {
         }
         return List.of(Optional.empty());
     }
+
 }

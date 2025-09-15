@@ -30,4 +30,5 @@ public class RecommendationSimpleCredit implements RecommendationRuleSet {
         }
         return List.of(Optional.empty());
     }
+
 }

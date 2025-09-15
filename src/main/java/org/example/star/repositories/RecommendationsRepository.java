@@ -1,7 +1,8 @@
 package org.example.star.repositories;
 
 import org.example.star.constants.Queries;
-import org.example.star.model.dto.DynamicRecommendationDto;
+import org.example.star.model.dto.dynamicRecommendation.DynamicRecommendationDto;
+import org.example.star.model.dto.dynamicRecommendation.GiveOutCounterDTO;
 import org.example.star.model.rule.Rule;
 import org.example.star.utill.Rule.RuleHandler;
 import org.example.star.utill.json.JsonConverter;
@@ -67,15 +68,42 @@ public class RecommendationsRepository {
         return affectedRows > 0;
     }
 
-    public Boolean checkUserForRecommendationById(UUID id, DynamicRecommendationDto dto){
-        Map<String, Queries> queriesMap = Queries.getQueryTemplates();
-      return dto.getRules().stream()
-                .allMatch(rule ->{
-                    String sqlQuery = queriesMap.get(rule.getQueryName()).getQuery();
-                    Map<String,Object> params = RuleHandler.buildSqlParameters(rule);
-                    params.put("userId",id);
-                    return jdbcTemplate.queryForObject(sqlQuery,params, Boolean.class);
-                });
+    public void incrementGiveOutCounter(DynamicRecommendationDto dto) {
+        String sql = "UPDATE recommendations SET give_out_counter = give_out_counter + 1 WHERE id = :id";
+        Map<String,Object> params = new HashMap<>();
+        params.put("id",dto.getRecommendation_id());
+        jdbcTemplate.update(sql,params);
+    }
 
+    public List<GiveOutCounterDTO>getStats() {
+        String sql = "SELECT id,give_out_counter FROM recommendations";
+        return jdbcTemplate.query(sql,(rs,rowNum) ->
+                new GiveOutCounterDTO(
+                        rs.getLong("id"),
+                        rs.getLong("give_out_counter")
+                )
+        );
+    }
+
+    public boolean wasVisit(long chatId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("chatId", chatId);
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                """
+                        SELECT EXISTS(SELECT 1
+                            FROM tg_bot_db t
+                            WHERE t.chat_id = :chatId)
+                        """,
+                params,
+                Boolean.class));
+    }
+
+    public void markAsVisitor(long chatId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("chatId", chatId);
+        jdbcTemplate.update("""
+            INSERT INTO tg_bot_db (chat_id)
+            VALUES (:chatId)
+            """, params);
     }
 }

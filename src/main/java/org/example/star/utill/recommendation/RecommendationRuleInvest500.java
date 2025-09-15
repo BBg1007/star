@@ -26,4 +26,6 @@ public class RecommendationRuleInvest500 implements RecommendationRuleSet {
         }
         return List.of(Optional.empty());
     }
+
+
 }

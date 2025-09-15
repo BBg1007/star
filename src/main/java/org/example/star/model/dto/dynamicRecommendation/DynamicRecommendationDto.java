@@ -1,16 +1,12 @@
-package org.example.star.model.dto;
+package org.example.star.model.dto.dynamicRecommendation;
 
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotNull;
 import org.example.star.model.recomendation.Recommendation;
 import org.example.star.model.rule.Rule;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Table;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 

@@ -20,7 +20,7 @@ public class RecommendationsDataSourceConfiguration {
         dataSource.setReadOnly(true);
         return dataSource;
     }
-
+    @Primary
     @Bean(name = "recommendationsH2JdbcTemplate")
     public NamedParameterJdbcTemplate recommendationsH2JdbcTemplate(
             @Qualifier("recommendationsH2DataSource") DataSource dataSource

@@ -6,10 +6,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @Repository
@@ -91,6 +88,12 @@ public class TransactionsRepository {
         });
     }
 
+    public void clearAllCaches() {
+        productUsageCache.invalidateAll();
+        transactionAmountCache.invalidateAll();
+        dynamicRuleCache.invalidateAll();
+    }
+
     private static class CacheKey {
         private final UUID userId;
         private final String param1;
@@ -119,6 +122,21 @@ public class TransactionsRepository {
         public int hashCode() {
             return Objects.hash(userId, param1, param2);
         }
+    }
+
+    public Set<UUID> getUserIdByName(String name) {
+        String[] splitName = name.split("\\s+");
+        if (splitName.length != 2) {
+            throw new IllegalArgumentException("Неверный формат имени.");
+        }
+        String sql = "SELECT id FROM USERS u WHERE FIRST_NAME = :fName AND LAST_NAME = :sName";
+        String fName = splitName[0];
+        String sName = splitName[1];
+        Map<String,Object>params = new HashMap<>();
+        params.put("fName",fName);
+        params.put("sName",sName);
+        Collection<UUID> userIdCollection = jdbcTemplate.queryForList(sql,params, UUID.class);
+        return new HashSet<>(userIdCollection);
     }
 
 }

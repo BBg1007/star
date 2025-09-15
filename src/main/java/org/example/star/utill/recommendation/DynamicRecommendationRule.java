@@ -1,7 +1,6 @@
 package org.example.star.utill.recommendation;
 
-import org.example.star.constants.Queries;
-import org.example.star.model.dto.DynamicRecommendationDto;
+import org.example.star.model.dto.dynamicRecommendation.DynamicRecommendationDto;
 import org.example.star.model.recomendation.Recommendation;
 import org.example.star.repositories.RecommendationsRepository;
 import org.example.star.repositories.TransactionsRepository;
@@ -36,11 +35,12 @@ public class DynamicRecommendationRule implements RecommendationRuleSet{
                             return transactionsRepository.getDynamicRuleQuery(sqlQuery,params);
                         }).allMatch(Boolean.TRUE::equals))
                 .forEach(dto -> {
+                    recommendationsRepository.incrementGiveOutCounter(dto);
                     result.add(Optional.of(new Recommendation(dto.getName(),dto.getProductId(), dto.getText())));
                 });
         return result;
         }
 
-
     }
+
 
